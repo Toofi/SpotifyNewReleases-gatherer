@@ -1,0 +1,14 @@
+{
+  "profiles": {
+    "SpotifyNewReleases": {
+      "commandName": "Project",
+      "commandLineArgs": "--port 7238"
+    },
+    "Container (Dockerfile)": {
+      "commandName": "Docker",
+      "launchUrl": "{Scheme}://{ServiceHost}:{ServicePort}",
+      "httpPort": 34657,
+      "useSSL": false
+    }
+  }
+}
