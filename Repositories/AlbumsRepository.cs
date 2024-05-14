@@ -1,7 +1,6 @@
-﻿using LanguageExt;
-using LanguageExt.Common;
-using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Logging;
 using MongoDB.Driver;
+using SpotifyNewReleases.Exceptions;
 using SpotifyNewReleases.Models;
 
 namespace SpotifyNewReleases.Repositories;
@@ -18,7 +17,7 @@ public class AlbumsRepository : IAlbumsRepository
         _logger = logger;
     }
 
-    public async Task<Result<Item>> AddNewRelease(Item release)
+    public async Task AddNewRelease(Item release)
     {
         try
         {
@@ -34,7 +33,6 @@ public class AlbumsRepository : IAlbumsRepository
                 nameof(AddNewRelease),
                 release.id);
             Console.WriteLine($"{release.id} inserted on db");
-            return new Result<Item>(release);
         }
         catch (Exception exception)
         {
@@ -44,7 +42,10 @@ public class AlbumsRepository : IAlbumsRepository
                 nameof(AddNewRelease),
                 release.id,
                 exception.Message);
-            return new Result<Item>(exception);
+            throw new ReleasesException($"{DateTimeOffset.Now} - " +
+                $"{nameof(AlbumsRepository)} - " +
+                $"{nameof(AddNewRelease)} - " +
+                $"Release {release.id} not inserted - {exception.Message}");
         }
     }
 

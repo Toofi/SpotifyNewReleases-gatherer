@@ -1,8 +1,8 @@
-﻿using LanguageExt.Common;
-using SpotifyNewReleases.Models;
+﻿using SpotifyNewReleases.Models;
 using SpotifyNewReleases.Repositories;
 using Discord;
-using Unit = LanguageExt.Unit;
+using Microsoft.Extensions.Logging;
+using SpotifyNewReleases.Exceptions;
 
 namespace SpotifyNewReleases.Services.Implementations;
 
@@ -12,17 +12,20 @@ public class SpotifyReleasesService : ISpotifyReleasesService
     private readonly IAlbumsRepository _albumsRepository;
     private readonly IDiscordRepository _discordRepository;
     private readonly IBlueskyRepository _blueskyRepository;
+    private readonly ILogger<ISpotifyReleasesService> _logger;
 
     public SpotifyReleasesService(ISpotifyRepository spotifyRepository,
         IAlbumsRepository albumsRepository,
         IBlueskyRepository blueskyRepository,
-        IDiscordRepository discordRepository
+        IDiscordRepository discordRepository,
+        ILogger<SpotifyReleasesService> logger
         )
     {
         _spotifyRepository = spotifyRepository;
         _albumsRepository = albumsRepository;
         _discordRepository = discordRepository;
         _blueskyRepository = blueskyRepository;
+        _logger = logger;
     }
 
     public async Task ProcessLatestReleases()
@@ -31,19 +34,29 @@ public class SpotifyReleasesService : ISpotifyReleasesService
         //aller vérifier dans le repo si chaque entrée existe déjà
         //si c'est une nouvelle, l'insérer dans la db
         //et envoyer dans un post bluesky
-        Result<SpotifyToken> spotifyTokenResult = await _spotifyRepository.GetSpotifyToken();
-        spotifyTokenResult.IfFail(Console.WriteLine);
-        spotifyTokenResult.IfSucc(async (token) => await GetLatestReleases(token));
+        SpotifyToken spotifyToken = await _spotifyRepository.GetSpotifyToken();
+        if (spotifyToken is null)
+        {
+            string error = "There is no received token";
+            _logger.LogError(error);
+            throw new SpotifyTokenException(error);
+        }
+        await GetLatestReleases(spotifyToken);
     }
 
     private async Task GetLatestReleases(SpotifyToken token)
     {
-        Result<List<Item>> itemsResult = await _spotifyRepository.GetAllLatestReleases(token);
-        itemsResult.IfFail(Console.WriteLine);
-        itemsResult.IfSucc(async (items) => await this.SendNewReleases(items));
+        List<Item> items = await _spotifyRepository.GetAllLatestReleases(token);
+        if (items is null || items.Count() == 0)
+        {
+            string error = "There is no releases";
+            _logger.LogError(error);
+            throw new ReleasesException(error);
+        }
+        await this.SendNewReleases(items);
     }
 
-    private async Task<Result<Unit>> SendNewReleases(List<Item> items)
+    private async Task SendNewReleases(List<Item> items)
     {
         uint newReleasesCount = 0;
         foreach (Item release in items)
@@ -51,13 +64,19 @@ public class SpotifyReleasesService : ISpotifyReleasesService
             if (!await this.IsReleaseAlreadyExisting(release.id))
             {
                 newReleasesCount++;
-                Result<Item> addNewReleaseResult = await _albumsRepository.AddNewRelease(release);
-                addNewReleaseResult.IfFail(Console.WriteLine);
-                addNewReleaseResult.IfSucc(async (unit) => await this.SendReleasesToClients(release));
+                try
+                {
+                    await _albumsRepository.AddNewRelease(release);
+                    await this.SendReleasesToClients(release);
+                }
+                catch (Exception exception)
+                {
+                    _logger.LogError($"Error: {exception.Message}");
+                    throw;
+                }
             }
         }
         Console.WriteLine($"added {newReleasesCount} new releases.");
-        return new Result<Unit>();
     }
 
     private async Task<bool> IsReleaseAlreadyExisting(string releaseId)
@@ -79,7 +98,7 @@ public class SpotifyReleasesService : ISpotifyReleasesService
     {
         Embed embeddedRelease = new EmbedBuilder()
            .WithAuthor(release.artists.First().name)
-           .WithUrl(release.external_urls.spotify)
+           .WithUrl(release.external_urls?.spotify)
            .WithColor(Color.DarkGreen)
            .WithDescription($"type: {release.album_type}")
            .WithTitle(release.name)

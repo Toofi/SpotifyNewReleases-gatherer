@@ -51,7 +51,7 @@ public class DiscordRepository : IDiscordRepository
                 await textChannel.SendMessageAsync(embed: embeddedMessage);
             }
         }
-        catch (Exception exception)
+        catch (Exception)
         {
             _logger.LogError("{datetime} - {service} - There is an error in sending embedded message",
                 DateTimeOffset.Now,

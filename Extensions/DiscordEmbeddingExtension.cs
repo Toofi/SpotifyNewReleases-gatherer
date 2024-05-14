@@ -10,7 +10,7 @@ public static class DiscordEmbeddingExtension
     {
         return new EmbedBuilder()
                .WithAuthor(release.artists.First().name)
-               .WithUrl(release.external_urls.spotify)
+               .WithUrl(release.external_urls?.spotify)
                .WithColor(Color.DarkGreen)
                .WithDescription($"type: {release.album_type}")
                .WithTitle(release.name)

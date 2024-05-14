@@ -1,41 +1,55 @@
-﻿using LanguageExt;
-using LanguageExt.Common;
-using MongoDB.Driver;
+﻿using MongoDB.Driver;
 using SpotifyNewReleases.Exceptions;
 using SpotifyNewReleases.Models;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using SpotifyNewReleases.Enums;
-
+using Microsoft.Extensions.Logging;
 namespace SpotifyNewReleases.Repositories;
 
 public class SpotifyRepository : ISpotifyRepository
 {
     private readonly HttpClient _httpClient;
+    private readonly ILogger<ISpotifyRepository> _logger;
 
-    public SpotifyRepository()
+    public SpotifyRepository(ILogger<SpotifyRepository> logger)
     {
         _httpClient = new();
+        _logger = logger;
     }
 
-    public async Task<Result<List<Item>>> GetAllLatestReleases(SpotifyToken token)
+    public async Task<List<Item>> GetAllLatestReleases(SpotifyToken token)
     {
         List<Item> allReleases = new List<Item>();
         foreach (string country in countries)
         {
-            Result<List<Item>> receivedReleases = await this.GetLastReleasesByCountry(country, token);
-            receivedReleases.IfFail(Console.WriteLine);
-            receivedReleases.IfSucc(allReleases.AddRange);
+            try
+            {
+                List<Item> receivedReleases = await this.GetLastReleasesByCountry(country, token);
+                if (receivedReleases is null || receivedReleases.Count == 0) 
+                {
+                    string error = "There is an error when receiving new all releases from Spotify";
+                    _logger.LogError(error);
+                    throw new ReleasesException(error);
+                }
+                allReleases.AddRange(receivedReleases);
+            }
+            catch (Exception exception)
+            {
+                _logger.LogError(exception.Message);
+            }
         }
-        return new Result<List<Item>>(allReleases
+        List<Item> distinctReleases = allReleases
             .DistinctBy(release => release.id)
             .OrderBy(release => release.release_date)
             .Reverse()
-            .ToList());
+            .ToList();
+        return distinctReleases;
+
     }
 
-    private async Task<Result<List<Item>>> GetLastReleasesByCountry(string country, SpotifyToken token)
+    private async Task<List<Item>> GetLastReleasesByCountry(string country, SpotifyToken token)
     {
         string spotifyGetReleaseByCountryUrl = Environment.GetEnvironmentVariable("spotifyGetReleaseByCountryUrl") ?? String.Empty;
         Uri path = new Uri($"{spotifyGetReleaseByCountryUrl}{country}&limit={50}");
@@ -55,40 +69,43 @@ public class SpotifyRepository : ISpotifyRepository
             SpotifyReleases? deserializedJson = JsonSerializer.Deserialize<SpotifyReleases>(responseContent);
             if (deserializedJson is null || deserializedJson?.albums?.items is null)
             {
-                return new Result<List<Item>>(new DeserializationException());
+                throw new DeserializationException();
             }
-            return new Result<List<Item>>(deserializedJson.albums.items);
+            return deserializedJson.albums.items;
         }
         catch (Exception exception)
         {
             Console.WriteLine(exception);
-            return new Result<List<Item>>(new DeserializationException(exception));
         }
-
+        throw new Exception();
     }
 
-    public async Task<Result<SpotifyToken>> GetSpotifyToken()
+    public async Task<SpotifyToken> GetSpotifyToken()
+    {
+        HttpResponseMessage responseMessage = await this.RequestToken();
+        var response = await responseMessage.Content.ReadAsStringAsync();
+        SpotifyToken? token = JsonSerializer.Deserialize<SpotifyToken>(response);
+        if (token is null)
+        {
+            throw new SpotifyTokenException("Error on deserialization");
+        }
+        return token;
+    }
+
+    private async Task<HttpResponseMessage> RequestToken()
     {
         string clientId = Environment.GetEnvironmentVariable("spotifyClientId") ?? string.Empty;
         string clientSecret = Environment.GetEnvironmentVariable("spotifyClientSecret") ?? string.Empty;
         string url = Environment.GetEnvironmentVariable("spotifyUrl") ?? string.Empty;
-
         ConfigureHttpClientResponseType();
         ConfigureHttpClientAuthorization(AuthenticationScheme.Basic, GetCredentials(clientId, clientSecret));
         FormUrlEncodedContent requestBody = GetRequestBody();
-        //Request Token
-        var request = await _httpClient.PostAsync(url, requestBody);
-        if (!request.IsSuccessStatusCode)
+        HttpResponseMessage responseMessage = await _httpClient.PostAsync(url, requestBody);
+        if (!responseMessage.IsSuccessStatusCode || responseMessage is null)
         {
-            return new Result<SpotifyToken>(new SpotifyTokenException("Error on http request"));
+            throw new SpotifyTokenException("Error on http request");
         }
-        var response = await request.Content.ReadAsStringAsync();
-        SpotifyToken? token = JsonSerializer.Deserialize<SpotifyToken>(response);
-        if (token is null)
-        {
-            return new Result<SpotifyToken>(new SpotifyTokenException("Error on deserialization"));
-        }
-        return new Result<SpotifyToken>(token);
+        return responseMessage;
     }
 
     private void ConfigureHttpClientResponseType()

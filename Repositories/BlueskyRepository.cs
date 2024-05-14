@@ -41,7 +41,7 @@ public class BlueskyRepository : IBlueskyRepository
         int linkLength = release.artists.First().name.Length + release.name.Length + 3;
         int byteStart = 22;
         FacetIndex index = new(byteStart, linkLength + byteStart);
-        FacetFeature? link = FacetFeature.CreateLink(release.external_urls.spotify);
+        FacetFeature? link = FacetFeature.CreateLink(release.external_urls?.spotify ?? "");
         return new(index, link);
     }
 
@@ -64,7 +64,7 @@ public class BlueskyRepository : IBlueskyRepository
             },
             async error =>
             {
-                Console.WriteLine($"Error: {error.StatusCode} {error.Detail}");
+                _logger.LogError($"Error: {error.StatusCode} {error.Detail}");
             });
     }
 

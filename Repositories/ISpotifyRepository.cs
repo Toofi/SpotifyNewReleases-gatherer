@@ -1,10 +1,9 @@
-﻿using LanguageExt.Common;
-using SpotifyNewReleases.Models;
+﻿using SpotifyNewReleases.Models;
 
 namespace SpotifyNewReleases.Repositories;
 
 public interface ISpotifyRepository
 {
-    public Task<Result<List<Item>>> GetAllLatestReleases(SpotifyToken token);
-    public Task<Result<SpotifyToken>> GetSpotifyToken();
+    public Task<List<Item>> GetAllLatestReleases(SpotifyToken token);
+    public Task<SpotifyToken> GetSpotifyToken();
 }
