@@ -10,25 +10,32 @@ namespace SpotifyNewReleases.Repositories;
 public class BlueskyRepository : IBlueskyRepository
 {
     private readonly ILogger<IBlueskyRepository> _logger;
+    private readonly ATProtocol _atProtocol;
+    private Result<Session> _sessionResult;
 
     public BlueskyRepository(ILogger<IBlueskyRepository> logger)
     {
         _logger = logger;
-    }
-
-    public async Task PostRelease(Item release)
-    {
         var debugLog = new DebugLoggerProvider();
         var atProtocolBuilder = new ATProtocolBuilder()
             .EnableAutoRenewSession(true)
             .WithLogger(debugLog.CreateLogger("SNRdebug"));
-        ATProtocol atProtocol = atProtocolBuilder.Build()!;
+        _atProtocol = atProtocolBuilder.Build()!;
+        this.CreateSession().GetAwaiter().GetResult();
+    }
+
+    public async Task PostRelease(Item release)
+    {
+        _sessionResult.Switch(
+        async (session) => await this.Post(release, _atProtocol),
+        error => this._logger.LogError("Error on creating session: " + error.ToString()));
+    }
+
+    private async Task CreateSession()
+    {
         string userName = Environment.GetEnvironmentVariable("blueskyUsername") ?? String.Empty;
         string password = Environment.GetEnvironmentVariable("blueskyPassword") ?? String.Empty;
-        Result<Session> createSessionresult = await atProtocol.Server.CreateSessionAsync(userName, password, CancellationToken.None);
-        createSessionresult.Switch(
-        async (session) => await this.Post(release, atProtocol),
-        error => this._logger.LogError(error.ToString()));
+        _sessionResult = await _atProtocol.Server.CreateSessionAsync(userName, password, CancellationToken.None);
     }
 
     private string GetPrompt(Item release)
@@ -56,11 +63,11 @@ public class BlueskyRepository : IBlueskyRepository
                 FishyFlip.Models.Image? image = blobResponse.Blob.ToImage();
                 Result<CreatePostResponse> postResult = await atProtocol.Repo.CreatePostAsync(
                     prompt,
-                    new[] { link },
+                    [link],
                     new ImagesEmbed(image, $"{release.artists.First().name} - {release.name}"));
                 postResult.Switch(
-                  success => _logger.LogInformation($"{release.id} posted"),
-                  error => Console.WriteLine(error));
+                  success => _logger.LogInformation($"{release.id} posted in Bluesky"),
+                  error => _logger.LogError(error.StatusCode.ToString()));
             },
             async error =>
             {

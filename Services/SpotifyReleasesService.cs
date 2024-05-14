@@ -104,7 +104,7 @@ public class SpotifyReleasesService : ISpotifyReleasesService
            .WithTitle(release.name)
            .WithThumbnailUrl(release.images.First().url)
            .WithFooter(release.release_date).Build();
-        await this._discordRepository.SendEmbeddedMessageToAllGuildsAsync(embeddedRelease);
+        await this._discordRepository.SendEmbeddedMessageToAllGuildsAsync(embeddedRelease, release.id);
     }
 
     private async Task SendToBluesky(Item release)

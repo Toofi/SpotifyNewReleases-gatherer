@@ -40,12 +40,11 @@ public class SpotifyRepository : ISpotifyRepository
                 _logger.LogError(exception.Message);
             }
         }
-        List<Item> distinctReleases = allReleases
+        return allReleases
             .DistinctBy(release => release.id)
             .OrderBy(release => release.release_date)
             .Reverse()
             .ToList();
-        return distinctReleases;
 
     }
 
@@ -71,6 +70,7 @@ public class SpotifyRepository : ISpotifyRepository
             {
                 throw new DeserializationException();
             }
+            _logger.LogInformation($"Received {deserializedJson.albums.items.Count()} albums from {country}");
             return deserializedJson.albums.items;
         }
         catch (Exception exception)

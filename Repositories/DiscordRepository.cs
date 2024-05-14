@@ -2,6 +2,7 @@
 using Discord;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.DependencyInjection;
+using Discord.Rest;
 
 namespace SpotifyNewReleases.Repositories;
 
@@ -40,7 +41,7 @@ public class DiscordRepository : IDiscordRepository
         await channel.SendMessageAsync(message);
     }
 
-    public async Task SendEmbeddedMessageToAllGuildsAsync(Embed embeddedMessage)
+    public async Task SendEmbeddedMessageToAllGuildsAsync(Embed embeddedMessage, string releaseId)
     {
         try
         {
@@ -48,7 +49,8 @@ public class DiscordRepository : IDiscordRepository
             List<SocketTextChannel> textChannels = this.GetSocketTextChannels(guild);
             foreach (SocketTextChannel textChannel in textChannels)
             {
-                await textChannel.SendMessageAsync(embed: embeddedMessage);
+                RestUserMessage message = await textChannel.SendMessageAsync(embed: embeddedMessage);
+                _logger.LogInformation($"{releaseId} posted in Discord");
             }
         }
         catch (Exception)

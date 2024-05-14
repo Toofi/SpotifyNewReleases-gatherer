@@ -5,5 +5,5 @@ namespace SpotifyNewReleases.Repositories;
 public interface IDiscordRepository
 {
     public Task SendMessageToGuildAsync(ulong guildId, string message);
-    public Task SendEmbeddedMessageToAllGuildsAsync(Embed embeddedMessage);
+    public Task SendEmbeddedMessageToAllGuildsAsync(Embed embeddedMessage, string releaseId);
 }
