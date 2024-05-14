@@ -16,7 +16,7 @@ namespace SpotifyNewReleases
         }
 
         [Function("GetSpotifyNewReleases")]
-        public async Task Run([TimerTrigger("15 32 * * * *")] TimerInfo myTimer)
+        public async Task Run([TimerTrigger("15 27 * * * *")] TimerInfo myTimer)
         {
             await this._spotifyReleasesService.ProcessLatestReleases();
             _logger.LogInformation($"C# Timer trigger function executed at: {DateTime.Now}");

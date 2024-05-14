@@ -45,15 +45,18 @@ public class SpotifyReleasesService : ISpotifyReleasesService
 
     private async Task<Result<Unit>> SendNewReleases(List<Item> items)
     {
+        uint newReleasesCount = 0;
         foreach (Item release in items)
         {
             if (!await this.IsReleaseAlreadyExisting(release.id))
             {
+                newReleasesCount++;
                 Result<Item> addNewReleaseResult = await _albumsRepository.AddNewRelease(release);
                 addNewReleaseResult.IfFail(Console.WriteLine);
                 addNewReleaseResult.IfSucc(async (unit) => await this.SendReleasesToClients(release));
             }
         }
+        Console.WriteLine($"added {newReleasesCount} new releases.");
         return new Result<Unit>();
     }
 
