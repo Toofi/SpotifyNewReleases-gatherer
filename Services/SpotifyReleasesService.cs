@@ -46,14 +46,25 @@ public class SpotifyReleasesService : ISpotifyReleasesService
 
     private async Task GetLatestReleases(SpotifyToken token)
     {
-        List<Item> items = await _spotifyRepository.GetAllLatestReleases(token);
-        if (items is null || items.Count() == 0)
+        List<Item> releases = await _spotifyRepository.GetLatestReleases(token);
+        await _albumsRepository.AddBulkReleases(releases);
+        List<Item> distinctReleases = GetDistinctReleases(releases);
+        if (distinctReleases is null || distinctReleases.Count == 0)
         {
             string error = "There is no releases";
             _logger.LogError(error);
             throw new ReleasesException(error);
         }
-        await this.SendNewReleases(items);
+        await this.SendNewReleases(distinctReleases);
+    }
+
+    private static List<Item> GetDistinctReleases(List<Item> releases)
+    {
+        return releases
+            .DistinctBy(release => release.id)
+            .OrderBy(release => release.release_date)
+            .Reverse()
+            .ToList();
     }
 
     private async Task SendNewReleases(List<Item> items)

@@ -6,6 +6,7 @@ using System.Text;
 using System.Text.Json;
 using SpotifyNewReleases.Enums;
 using Microsoft.Extensions.Logging;
+
 namespace SpotifyNewReleases.Repositories;
 
 public class SpotifyRepository : ISpotifyRepository
@@ -19,39 +20,37 @@ public class SpotifyRepository : ISpotifyRepository
         _logger = logger;
     }
 
-    public async Task<List<Item>> GetAllLatestReleases(SpotifyToken token)
+    public async Task<List<Item>> GetLatestReleases(SpotifyToken token)
     {
         List<Item> allReleases = new List<Item>();
         foreach (string country in countries)
         {
             try
             {
-                List<Item> receivedReleases = await this.GetLastReleasesByCountry(country, token);
-                if (receivedReleases is null || receivedReleases.Count == 0) 
+                for (uint offset = 0; offset < 100; offset+=50)
                 {
-                    string error = "There is an error when receiving new all releases from Spotify";
-                    _logger.LogError(error);
-                    throw new ReleasesException(error);
+                    List<Item> receivedReleases = await this.GetLastReleasesByCountry(country, offset, token);
+                    if (receivedReleases is null || receivedReleases.Count == 0)
+                    {
+                        string error = "There is an error when receiving new all releases from Spotify";
+                        _logger.LogError(error);
+                        throw new ReleasesException(error);
+                    }
+                    allReleases.AddRange(receivedReleases);
                 }
-                allReleases.AddRange(receivedReleases);
             }
             catch (Exception exception)
             {
                 _logger.LogError(exception.Message);
             }
         }
-        return allReleases
-            .DistinctBy(release => release.id)
-            .OrderBy(release => release.release_date)
-            .Reverse()
-            .ToList();
-
+        return allReleases;
     }
 
-    private async Task<List<Item>> GetLastReleasesByCountry(string country, SpotifyToken token)
+    private async Task<List<Item>> GetLastReleasesByCountry(string country, uint offset, SpotifyToken token)
     {
         string spotifyGetReleaseByCountryUrl = Environment.GetEnvironmentVariable("spotifyGetReleaseByCountryUrl") ?? String.Empty;
-        Uri path = new Uri($"{spotifyGetReleaseByCountryUrl}{country}&limit={50}");
+        Uri path = new Uri($"{spotifyGetReleaseByCountryUrl}{offset}&country={country}");
 
         this.ConfigureHttpClientResponseType();
         this.ConfigureHttpClientAuthorization(AuthenticationScheme.Bearer, token.access_token);
@@ -70,7 +69,7 @@ public class SpotifyRepository : ISpotifyRepository
             {
                 throw new DeserializationException();
             }
-            _logger.LogInformation($"Received {deserializedJson.albums.items.Count()} albums from {country}");
+            _logger.LogInformation($"Received {deserializedJson.albums.items.Count()} albums from country {country}");
             return deserializedJson.albums.items;
         }
         catch (Exception exception)
